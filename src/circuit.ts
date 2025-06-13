@@ -1,6 +1,6 @@
 /// Combinational Logic Circuit Simulator
 
-import { Module, Value, Expr } from "./circuit_types";
+import type { Module, Value, Expr } from "./circuit_types";
 
 export type Env = { [name: string]: Value };
 
@@ -131,6 +131,10 @@ export function simulateCircuit(
   // assuming module.registers are sorted topologically
   for (const wire of module.wires) {
     env[wire.name] = evalExpr(wire.value, env);
+    if (wire.width !== env[wire.name].width) {
+      // throw new Error(`Wire width mismatch for ${wire.name}: expected ${wire.width}, got ${env[wire.name].width}`);
+      console.warn(`Wire width mismatch for ${wire.name}: expected ${wire.width}, got ${env[wire.name].width}`);
+    }
   }
 
   return env;

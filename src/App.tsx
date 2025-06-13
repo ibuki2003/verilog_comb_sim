@@ -1,33 +1,78 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import { useMemo, useState } from 'react'
 import './App.css'
+import type { Module } from './circuit_types'
+import { simulateCircuit } from './circuit'
+
+const mod: Module = {
+  inputs: [{ name: 'a', width: 8 }, { name: 'b', width: 8 }],
+  wires: [
+    {
+      name: 'c',
+      width: 8,
+      value: {
+        type: 'bin_op',
+        op: '+',
+        left: { type: 'register', name: 'a' },
+        right: { type: 'register', name: 'b' },
+      },
+    },
+    {
+      name: 'd',
+      width: 8,
+      value: {
+        type: 'bin_op',
+        op: '*',
+        left: { type: 'register', name: 'a' },
+        right: { type: 'register', name: 'b' },
+      },
+    },
+  ],
+  outputs: ['c', 'd']
+}
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [inputs, setInputs] = useState<{ [name: string]: string }>(() => (
+        Object.fromEntries(mod.inputs.map(input => [input.name, '0'])))
+  );
+
+  const result = useMemo(() => {
+    const input_values = Object.fromEntries(
+      Object.entries(inputs).map(([name, value]) => [
+        name,
+        {
+          // width: mod.inputs[name].width,
+          width: mod.inputs.find(input => input.name === name)?.width ?? 0,
+          value: BigInt(value),
+        },
+      ])
+    );
+    return simulateCircuit(mod, input_values);
+  }, [inputs]);
 
   return (
     <>
       <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+        { Object.entries(inputs).map(([name, value]) => (
+          <div key={name}>
+            <label>
+              {name}:
+              <input
+                type="number"
+                value={value}
+                onChange={(e) => setInputs({ ...inputs, [name]: e.target.value })}
+              />
+            </label>
+          </div>
+        )) }
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
+      <hr />
+      <ul>
+        {mod.outputs.map(output => (
+          <li key={output}>
+            {output}: {result[output]?.value.toString()} (width: {result[output]?.width})
+          </li>
+        ))}
+      </ul>
     </>
   )
 }
