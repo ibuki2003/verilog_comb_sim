@@ -139,3 +139,23 @@ export function simulateCircuit(
 
   return env;
 }
+
+export function value2str(value: Value, type: 'bin' | 'dec' | 'hex'): string {
+  switch (type) {
+    case 'bin':
+      return '0b' + value.value.toString(2).padStart(value.width, '0');
+    case 'dec':
+      return value.value.toString(10);
+    case 'hex':
+      return '0x' + value.value.toString(16).padStart(Math.ceil(value.width / 4), '0');
+    default:
+      throw new Error(`Unknown type: ${type}`);
+  }
+}
+
+export function str2value(str: string, width: number): Value {
+  const parsed = BigInt(str);
+
+  return { value: parsed & ones(width), width };
+}
+

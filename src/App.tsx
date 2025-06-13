@@ -1,7 +1,14 @@
-import { useMemo, useState } from 'react'
-import './App.css'
-import type { Module } from './circuit_types'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import './App.scss'
+import type { Module, Value } from './circuit_types'
 import { simulateCircuit } from './circuit'
+import { ReactFlow, useNodesState, useEdgesState, useReactFlow, Panel } from '@xyflow/react'
+import type { Edge } from '@xyflow/react';
+import Dagre from '@dagrejs/dagre';
+import '@xyflow/react/dist/style.css';
+
+import RegisterNodeComponent, {type RegisterNode}  from "./nodes/registernode";
+import InputNodeComponent, {type InputNode} from "./nodes/inputnode";
 
 const mod: Module = {
   inputs: [{ name: 'a', width: 8 }, { name: 'b', width: 8 }],
@@ -32,51 +39,139 @@ const mod: Module = {
   outputs: ['c', 'd']
 }
 
-function App() {
-  const [inputs, setInputs] = useState<{ [name: string]: string }>(() => (
-        Object.fromEntries(mod.inputs.map(input => [input.name, '0'])))
+const nodeTypes = {
+  input: InputNodeComponent,
+  register: RegisterNodeComponent,
+};
+
+type Node = InputNode | RegisterNode;
+
+const App: React.FC = () => {
+  const [inputs, setInputs] = useState<{ [name: string]: Value }>(() => (
+    Object.fromEntries(mod.inputs.map(input => [input.name, { width: input.width, value: 0n }])))
   );
+  console.log(inputs);
+
+  const { fitView, updateNodeData } = useReactFlow<Node, Edge>();
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+
 
   const result = useMemo(() => {
-    const input_values = Object.fromEntries(
-      Object.entries(inputs).map(([name, value]) => [
-        name,
-        {
-          // width: mod.inputs[name].width,
-          width: mod.inputs.find(input => input.name === name)?.width ?? 0,
-          value: BigInt(value),
-        },
-      ])
-    );
-    return simulateCircuit(mod, input_values);
+    return simulateCircuit(mod, inputs);
   }, [inputs]);
+
+  useEffect(() => {
+    const inputNodes = mod.inputs.map<InputNode>((input, index) => ({
+      id: input.name,
+      type: "input",
+      data: {
+        name: input.name,
+        width: input.width,
+        value: "",
+        parsedValue: { width: 1, value: 0n },
+        onChange: (v) => setInputs((old) => ({ ...old, [input.name]: v })),
+      },
+      position: { x: index * 150, y: 0 },
+    }));
+    const wireNodes = mod.wires.map<RegisterNode>((wire, index) => ({
+      id: wire.name,
+      type: "register",
+      data: {
+        name: wire.name,
+        value: {
+          width: wire.width,
+          value: 0n,
+        },
+      },
+      position: { x: index * 150, y: 100 },
+    }));
+    setNodes([
+      ...inputNodes,
+      ...wireNodes,
+    ]);
+  }, [setNodes]);
+
+  useEffect(() => {
+    Object.entries(result).forEach(([name, value]) => {
+      if (!(name in inputs))
+        updateNodeData(name, { value });
+    });
+  }, [inputs, result, setNodes, updateNodeData]);
+
+
+  const onLayout = useCallback(
+    () => {
+      console.log(nodes);
+      console.log(edges);
+      const layouted = getLayoutedElements(nodes, edges);
+
+      setNodes([...layouted.nodes]);
+      setEdges([...layouted.edges]);
+
+      fitView();
+    },
+    [nodes, edges, setNodes, setEdges, fitView],
+  );
+
+  useEffect(() => {
+    setEdges(mod.wires.flatMap(wire =>
+        wire.dep_list.map(dep => ({
+          id: `${dep}-${wire.name}`,
+          source: dep,
+          target: wire.name,
+
+        }))
+    ));
+  }, [setEdges]);
 
   return (
     <>
-      <div>
-        { Object.entries(inputs).map(([name, value]) => (
-          <div key={name}>
-            <label>
-              {name}:
-              <input
-                type="number"
-                value={value}
-                onChange={(e) => setInputs({ ...inputs, [name]: e.target.value })}
-              />
-            </label>
-          </div>
-        )) }
-      </div>
-      <hr />
-      <ul>
-        {mod.outputs.map(output => (
-          <li key={output}>
-            {output}: {result[output]?.value.toString()} (width: {result[output]?.width})
-          </li>
-        ))}
-      </ul>
+      <ReactFlow
+        nodes={nodes}
+        nodeTypes={nodeTypes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        nodesConnectable={false}
+        fitView
+      >
+        <Panel position="bottom-right">
+          <button onClick={onLayout}>Layout</button>
+        </Panel>
+      </ReactFlow>
     </>
   )
 }
 
-export default App
+
+const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
+  const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
+  g.setGraph({ rankdir: '' });
+
+  edges.forEach((edge) => g.setEdge(edge.source, edge.target));
+  nodes.forEach((node) =>
+    g.setNode(node.id, {
+      ...node,
+      width: node.measured?.width ?? 0,
+      height: node.measured?.height ?? 0,
+    }),
+  );
+
+  Dagre.layout(g);
+
+  return {
+    nodes: nodes.map((node) => {
+      const position = g.node(node.id);
+      // We are shifting the dagre node position (anchor=center center) to the top left
+      // so it matches the React Flow node anchor point (top left).
+      const x = position.x - (node.measured?.width ?? 0) / 2;
+      const y = position.y - (node.measured?.height ?? 0) / 2;
+
+      return { ...node, position: { x, y } };
+    }),
+    edges,
+  };
+};
+
+export default App;
