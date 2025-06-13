@@ -13,6 +13,7 @@ export interface Wire {
   name: string;
   width: number;
   value: Expr;
+  dep_list: string[]; // names of dependent wires
 }
 
 export interface Module {

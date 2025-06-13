@@ -15,6 +15,7 @@ const mod: Module = {
         left: { type: 'register', name: 'a' },
         right: { type: 'register', name: 'b' },
       },
+      dep_list: ['a', 'b'],
     },
     {
       name: 'd',
@@ -25,6 +26,7 @@ const mod: Module = {
         left: { type: 'register', name: 'a' },
         right: { type: 'register', name: 'b' },
       },
+      dep_list: ['a', 'b'],
     },
   ],
   outputs: ['c', 'd']
