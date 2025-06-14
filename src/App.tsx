@@ -22,6 +22,17 @@ function nodeWidth(bitwidth: number): number {
   return Math.max(bitwidth * 8, 150);
 }
 
+const INITIAL_INPUT = `
+module test(
+    input [7:0] a,
+    output [7:0] b,
+    );
+  wire [3:0] c = a[3:0];
+  wire [3:0] d = a[7:4];
+  assign b = {(c&d), (c|d)};
+endmodule
+`
+
 const App: React.FC = () => {
   const [mod, setMod] = useState<Module>({ inputs: [], wires: [], outputs: [] });
   const textarearef = useRef<HTMLTextAreaElement>(null);
@@ -83,6 +94,14 @@ const App: React.FC = () => {
       console.error("Error parsing Verilog module:", error);
     }
   }, []);
+
+  // load example on load
+  useEffect(() => {
+    if (!textarearef.current) return;
+    if (textarearef.current.value) return; // don't overwrite if already set
+    textarearef.current!.value = INITIAL_INPUT;
+    updateMod();
+  }, [updateMod]);
 
   useEffect(() => {
     setNodes(oldnodes => {
@@ -158,9 +177,11 @@ const App: React.FC = () => {
         fitView
       >
         <Panel position="bottom-right">
-          <button onClick={onLayout}>Layout</button>
           <textarea ref={textarearef} rows={10} />
-          <button onClick={updateMod}>update</button>
+          <div>
+            <button onClick={onLayout}>Layout</button>
+            <button onClick={updateMod}>Compile</button>
+          </div>
         </Panel>
       </ReactFlow>
     </>
