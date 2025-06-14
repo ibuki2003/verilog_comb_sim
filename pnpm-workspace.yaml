@@ -1,0 +1,4 @@
+onlyBuiltDependencies:
+  - esbuild
+  - tree-sitter-systemverilog
+  - tree-sitter-verilog
