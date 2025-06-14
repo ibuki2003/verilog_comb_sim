@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './App.scss'
 import type { Module, Value } from './circuit_types'
 import { simulateCircuit } from './circuit'
@@ -6,38 +6,10 @@ import { ReactFlow, useNodesState, useEdgesState, useReactFlow, Panel } from '@x
 import type { Edge } from '@xyflow/react';
 import Dagre from '@dagrejs/dagre';
 import '@xyflow/react/dist/style.css';
+import { parseVerilogModule } from './parser';
 
 import RegisterNodeComponent, {type RegisterNode}  from "./nodes/registernode";
 import InputNodeComponent, {type InputNode} from "./nodes/inputnode";
-
-const mod: Module = {
-  inputs: [{ name: 'a', width: 8 }, { name: 'b', width: 8 }],
-  wires: [
-    {
-      name: 'c',
-      width: 8,
-      value: {
-        type: 'bin_op',
-        op: '+',
-        left: { type: 'register', name: 'a' },
-        right: { type: 'register', name: 'b' },
-      },
-      dep_list: ['a', 'b'],
-    },
-    {
-      name: 'd',
-      width: 8,
-      value: {
-        type: 'bin_op',
-        op: '*',
-        left: { type: 'register', name: 'a' },
-        right: { type: 'register', name: 'b' },
-      },
-      dep_list: ['a', 'b'],
-    },
-  ],
-  outputs: ['c', 'd']
-}
 
 const nodeTypes = {
   input: InputNodeComponent,
@@ -47,19 +19,70 @@ const nodeTypes = {
 type Node = InputNode | RegisterNode;
 
 const App: React.FC = () => {
-  const [inputs, setInputs] = useState<{ [name: string]: Value }>(() => (
-    Object.fromEntries(mod.inputs.map(input => [input.name, { width: input.width, value: 0n }])))
-  );
-  console.log(inputs);
+  const [mod, setMod] = useState<Module>({ inputs: [], wires: [], outputs: [] });
+  const textarearef = useRef<HTMLTextAreaElement>(null);
+
+  const [inputs, setInputs] = useState<{ [name: string]: Value }>({});
 
   const { fitView, updateNodeData } = useReactFlow<Node, Edge>();
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const onLayout = useCallback(
+    () => {
+      console.log(nodes);
+      console.log(edges);
+      const layouted = getLayoutedElements(nodes, edges);
 
+      setNodes([...layouted.nodes]);
+      setEdges([...layouted.edges]);
+
+      fitView();
+    },
+    [nodes, edges, setNodes, setEdges, fitView],
+  );
+
+  const updateMod = useCallback(async () => {
+
+    const code = textarearef.current?.value;
+    if (!code) return;
+    try {
+      const parsedModule = await parseVerilogModule(code);
+      if (!parsedModule) {
+        console.error("Failed to parse Verilog module");
+        return;
+      }
+      setMod(parsedModule);
+
+      setInputs(oldInputs => {
+        const newInputs = { ...oldInputs };
+
+        // Remove inputs that are no longer in the module
+        const input_names = new Set(parsedModule.inputs.map(input => input.name));
+        for (const name in oldInputs) {
+          if (!input_names.has(name)) {
+            delete newInputs[name];
+          }
+        }
+
+        parsedModule.inputs.forEach(input => {
+          if (!(input.name in newInputs)) {
+            newInputs[input.name] = { width: input.width, value: 0n };
+          } else if (newInputs[input.name].width !== input.width) {
+            newInputs[input.name].width = input.width;
+            newInputs[input.name].value = BigInt(0);
+          }
+        });
+
+        return newInputs;
+      });
+    } catch (error) {
+      console.error("Error parsing Verilog module:", error);
+    }
+  }, []);
 
   const result = useMemo(() => {
     return simulateCircuit(mod, inputs);
-  }, [inputs]);
+  }, [inputs, mod]);
 
   useEffect(() => {
     const inputNodes = mod.inputs.map<InputNode>((input, index) => ({
@@ -79,6 +102,7 @@ const App: React.FC = () => {
       type: "register",
       data: {
         name: wire.name,
+        width: wire.width,
         value: {
           width: wire.width,
           value: 0n,
@@ -90,7 +114,7 @@ const App: React.FC = () => {
       ...inputNodes,
       ...wireNodes,
     ]);
-  }, [setNodes]);
+  }, [mod.inputs, mod.wires, setNodes]);
 
   useEffect(() => {
     Object.entries(result).forEach(([name, value]) => {
@@ -100,19 +124,6 @@ const App: React.FC = () => {
   }, [inputs, result, setNodes, updateNodeData]);
 
 
-  const onLayout = useCallback(
-    () => {
-      console.log(nodes);
-      console.log(edges);
-      const layouted = getLayoutedElements(nodes, edges);
-
-      setNodes([...layouted.nodes]);
-      setEdges([...layouted.edges]);
-
-      fitView();
-    },
-    [nodes, edges, setNodes, setEdges, fitView],
-  );
 
   useEffect(() => {
     setEdges(mod.wires.flatMap(wire =>
@@ -123,7 +134,7 @@ const App: React.FC = () => {
 
         }))
     ));
-  }, [setEdges]);
+  }, [setEdges, mod.wires]);
 
   return (
     <>
@@ -138,6 +149,8 @@ const App: React.FC = () => {
       >
         <Panel position="bottom-right">
           <button onClick={onLayout}>Layout</button>
+          <textarea ref={textarearef} rows={10} />
+          <button onClick={updateMod}>update</button>
         </Panel>
       </ReactFlow>
     </>
