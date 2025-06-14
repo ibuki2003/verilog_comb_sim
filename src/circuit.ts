@@ -105,7 +105,7 @@ export function evalExpr(expr: Expr, env: Env): Value {
         case '~': return { width, value: BigInt.asUintN(width, ~value) };
         case '!':
           // logical NOT, returns 1 if value is 0, otherwise 0
-          return { width: 1, value: BigInt(!value ? 1 : 0) };
+          return { width: 1, value: BigInt(value ? 0 : 1) };
         case '|':
           // bitwise OR with all bits set to 1
           return { width: 1, value: value ? BigInt(1) : BigInt(0) };
@@ -116,7 +116,7 @@ export function evalExpr(expr: Expr, env: Env): Value {
       }
     }
     case 'cond': {
-      const condition = evalExpr(expr.condition, env);
+      const condition = evalExpr(expr.condition, env).value !== 0n;
       return condition ? evalExpr(expr.trueExpr, env) : evalExpr(expr.falseExpr, env);
     }
 
@@ -147,7 +147,7 @@ export function evalExpr(expr: Expr, env: Env): Value {
         console.warn(`Slice out of range: start=${expr.start}, end=${expr.end}, width=${val.width}`);
       }
       // Extract bits from start to end (exclusive)
-      const shifted = val.value >> BigInt(expr.start);
+      const shifted = val.value >> BigInt(base);
       const masked = BigInt.asUintN(width, shifted);
       return { width, value: masked };
     }
@@ -205,6 +205,7 @@ export function simulateCircuit(
   // Evaluate registers
   // assuming module.registers are sorted topologically
   for (const wire of module.wires) {
+    console.log(`Evaluating wire: ${wire.name}`);
     env[wire.name] = evalExpr(wire.value, env);
     if (wire.width !== env[wire.name].width) {
       // throw new Error(`Wire width mismatch for ${wire.name}: expected ${wire.width}, got ${env[wire.name].width}`);

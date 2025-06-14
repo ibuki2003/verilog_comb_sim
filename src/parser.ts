@@ -9,8 +9,7 @@ let globalParser: Parser | null = null;
 async function initParser() {
   if (globalParser) return globalParser;
   await Parser.init({
-    locateFile(scriptName: string, scriptDirectory: string) {
-    console.log({ scriptName, scriptDirectory });
+    locateFile(scriptName: string) {
       return '/' + scriptName;
     },
   });
@@ -69,7 +68,7 @@ export async function parseVerilogModule(code: string): Promise<Module | null> {
     return null;
   }
 
-  console.log(JSON.stringify(node2json(module), null, 2));
+  // console.log(JSON.stringify(node2json(module), null, 2));
 
   let found_error = false;
   module.descendantsOfType('ERROR').forEach((errNode) => {
@@ -237,9 +236,9 @@ function parse_expr(node: NodeWithType<'expression'> | null): ParsedExpr  | null
             falseExpr: falseExpr.expr,
           },
           deps: mergeDeps(
-            (cond.deps || []),
-            (trueExpr.deps || []),
-            (falseExpr.deps || []),
+            cond.deps,
+            trueExpr.deps,
+            falseExpr.deps,
           ),
         };
       }
@@ -360,7 +359,6 @@ function parsePrimaryExpr(node: NodeWithType<'primary' | 'variable_lvalue'> | nu
       const select_bit = getDescendantByPath(children[1], ['bit_select']);
       const select_range = getDescendantByPath(children[1], ['constant_range']);
       const select_dyn = getDescendantByPath(children[1], ['indexed_range']);
-      console.log(select_bit?.type, select_range?.type);
 
       if (select_range) {
         // slice

@@ -85,35 +85,37 @@ const App: React.FC = () => {
   }, [inputs, mod]);
 
   useEffect(() => {
-    const inputNodes = mod.inputs.map<InputNode>((input, index) => ({
-      id: input.name,
-      type: "input",
-      data: {
-        name: input.name,
-        width: input.width,
-        value: "",
-        parsedValue: { width: 1, value: 0n },
-        onChange: (v) => setInputs((old) => ({ ...old, [input.name]: v })),
-      },
-      position: { x: index * 150, y: 0 },
-    }));
-    const wireNodes = mod.wires.map<RegisterNode>((wire, index) => ({
-      id: wire.name,
-      type: "register",
-      data: {
-        name: wire.name,
-        width: wire.width,
-        value: {
-          width: wire.width,
-          value: 0n,
+    setNodes(oldnodes => {
+      console.log(mod.inputs, mod.wires);
+      const pos = Object.fromEntries(oldnodes.map(node => [node.id, node.position]));
+      const inputNodes = mod.inputs.map<InputNode>((input, index) => ({
+        id: input.name,
+        type: "input",
+        data: {
+          name: input.name,
+          width: input.width,
+          onChange: (v) => setInputs((old) => ({ ...old, [input.name]: v })),
         },
-      },
-      position: { x: index * 150, y: 100 },
-    }));
-    setNodes([
-      ...inputNodes,
-      ...wireNodes,
-    ]);
+        position: pos[input.name] ?? { x: index * 150, y: 0 },
+      }));
+      const wireNodes = mod.wires.map<RegisterNode>((wire, index) => ({
+        id: wire.name,
+        type: "register",
+        data: {
+          name: wire.name,
+          width: wire.width,
+          value: {
+            width: wire.width,
+            value: 0n,
+          },
+        },
+        position: pos[wire.name] ?? { x: index * 150, y: 100 },
+      }));
+      return [
+        ...inputNodes,
+        ...wireNodes,
+      ]
+    });
   }, [mod.inputs, mod.wires, setNodes]);
 
   useEffect(() => {
@@ -144,6 +146,7 @@ const App: React.FC = () => {
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onBeforeDelete={async () => false} // Prevent deletion of nodes
         nodesConnectable={false}
         fitView
       >
