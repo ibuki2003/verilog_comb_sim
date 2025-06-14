@@ -5,8 +5,10 @@ export type Expr = (
     | { type: 'un_op'; op: string; expr: Expr }
     | { type: 'cond'; condition: Expr; trueExpr: Expr; falseExpr: Expr }
     | { type: 'concat'; exprs: Expr[] }
+    | { type: 'repeat'; expr: Expr; count: Expr }
     | { type: 'slice'; expr: Expr; start: number; end: number }
-    | { type: 'select'; expr: Expr; index: number }
+    | { type: 'slice_dyn'; expr: Expr; start: Expr; width: number }
+    | { type: 'select'; expr: Expr; index: Expr }
 );
 
 export interface Wire {
