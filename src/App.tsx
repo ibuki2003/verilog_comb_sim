@@ -18,6 +18,10 @@ const nodeTypes = {
 
 type Node = InputNode | RegisterNode;
 
+function nodeWidth(bitwidth: number): number {
+  return Math.max(bitwidth * 8, 150);
+}
+
 const App: React.FC = () => {
   const [mod, setMod] = useState<Module>({ inputs: [], wires: [], outputs: [] });
   const textarearef = useRef<HTMLTextAreaElement>(null);
@@ -80,10 +84,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const result = useMemo(() => {
-    return simulateCircuit(mod, inputs);
-  }, [inputs, mod]);
-
   useEffect(() => {
     setNodes(oldnodes => {
       console.log(mod.inputs, mod.wires);
@@ -91,6 +91,7 @@ const App: React.FC = () => {
       const inputNodes = mod.inputs.map<InputNode>((input, index) => ({
         id: input.name,
         type: "input",
+        width: nodeWidth(input.width),
         data: {
           name: input.name,
           width: input.width,
@@ -101,6 +102,7 @@ const App: React.FC = () => {
       const wireNodes = mod.wires.map<RegisterNode>((wire, index) => ({
         id: wire.name,
         type: "register",
+        width: nodeWidth(wire.width),
         data: {
           name: wire.name,
           width: wire.width,
@@ -119,11 +121,16 @@ const App: React.FC = () => {
   }, [mod.inputs, mod.wires, setNodes]);
 
   useEffect(() => {
-    Object.entries(result).forEach(([name, value]) => {
-      if (!(name in inputs))
-        updateNodeData(name, { value });
-    });
-  }, [inputs, result, setNodes, updateNodeData]);
+    // HACK: update simultaneously can cause issues with React Flow?
+    setTimeout(() => {
+      const result = simulateCircuit(mod, inputs);
+
+      Object.entries(result).forEach(([name, value]) => {
+        if (!(name in inputs))
+          updateNodeData(name, { value });
+      });
+    }, 10);
+  }, [mod, inputs, updateNodeData]);
 
 
 
