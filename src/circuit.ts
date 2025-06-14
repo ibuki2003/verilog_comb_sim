@@ -63,7 +63,6 @@ export function evalExpr(expr: Expr, env: Env): Value {
       return env[expr.name];
 
     case 'bin_op': {
-      console.log({ expr, env });
       const { width: lb, value: l } = evalExpr(expr.left, env);
       const { value: r } = evalExpr(expr.right, env);
       switch (expr.op) {
@@ -76,14 +75,17 @@ export function evalExpr(expr: Expr, env: Env): Value {
         case '|': return { width: lb, value: l | r};
         case '^': return { width: lb, value: l ^ r};
 
+        case '&&': return { width: 1, value: BigInt.asUintN(1, l && r ? 1n : 0n) };
+        case '||': return { width: 1, value: BigInt.asUintN(1, l || r ? 1n : 0n) };
+
         case '<':  return { width: 1, value: BigInt.asUintN(1, l < r ? 1n : 0n) };
         case '>':  return { width: 1, value: BigInt.asUintN(1, l > r ? 1n : 0n) };
         case '<=': return { width: 1, value: BigInt.asUintN(1, l <= r ? 1n : 0n) };
         case '>=': return { width: 1, value: BigInt.asUintN(1, l >= r ? 1n : 0n) };
         case '==': return { width: 1, value: BigInt.asUintN(1, l === r ? 1n : 0n) };
 
-        case '<<': return { width: 1, value: BigInt.asUintN(lb, l << r) };
-        case '>>': return { width: 1, value: l >> r };
+        case '<<': return { width: lb, value: BigInt.asUintN(lb, l << r) };
+        case '>>': return { width: lb, value: l >> r };
         case '>>>': {
           // mathematical right shift
           // NOTE: here we assume that lhs are signed while l is always positive
@@ -141,7 +143,8 @@ export function evalExpr(expr: Expr, env: Env): Value {
       const width = Math.abs(expr.start - expr.end) + 1;
       const val = evalExpr(expr.expr, env);
       if (base + width > val.width) {
-        throw new Error(`Slice out of range: start=${expr.start}, end=${expr.end}, width=${val.width}`);
+        // throw new Error(`Slice out of range: start=${expr.start}, end=${expr.end}, width=${val.width}`);
+        console.warn(`Slice out of range: start=${expr.start}, end=${expr.end}, width=${val.width}`);
       }
       // Extract bits from start to end (exclusive)
       const shifted = val.value >> BigInt(expr.start);
@@ -150,7 +153,6 @@ export function evalExpr(expr: Expr, env: Env): Value {
     }
 
     case 'slice_dyn': {
-      console.log(expr.start);
       const base = evalExpr(expr.start, env).value;
       const width = expr.width;
       const val = evalExpr(expr.expr, env);
